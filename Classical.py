@@ -1,4 +1,5 @@
 # %%
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import torch
@@ -163,13 +164,15 @@ def excute(products, verbose=0, epochs=50, n_ventana=15, n_pred=1):
 
 # %%
 
-# conjuntos Sample Sales Data French bakery daily sales
-all_sales = pd.read_csv('sales3.csv')
+# Sample Sales Data - French bakery daily sales
+# https://www.kaggle.com/datasets/matthieugimbert/french-bakery-daily-sales/data
+
+all_sales = pd.read_csv('sales.csv')
 all_sales = all_sales.rename(columns={'article': 'product', 'Quantity': 'sales'})
 all_sales = all_sales[['date', 'product', 'sales']]
 all_sales = all_sales.groupby(['product', 'date'], as_index=False)['sales'].sum()
 '''
-Top 10
+Top 20 most sold products
 
 TRADITIONAL BAGUETTE    117463.0
 CROISSANT                29654.0
@@ -181,10 +184,20 @@ CEREAL BAGUETTE           7427.0
 SPECIAL BREAD             5456.0
 FORMULE SANDWICH          5181.0
 TARTELETTE                5020.0
+BOULE 400G                4824.0
+CAMPAGNE                  4356.0
+COOKIE                    3779.0
+ECLAIR                    3654.0
+VIK BREAD                 3619.0
+COMPLET                   3535.0
+FICELLE                   3405.0
+MOISSON                   3362.0
+BANETTINE                 3092.0
+BOULE 200G                3080.0
 '''
 
-# Debe tener columnas: date, product, sales
-# Columna date como datetime
+# required columns: date, product, sales
+# date column as datetime
 all_sales['date'] = pd.to_datetime(all_sales['date'])
 
 print(all_sales['product'].unique())
@@ -200,28 +213,14 @@ print(top_20_products)
 #result = 
 excute(
   [
-  #'TRADITIONAL BAGUETTE',
-  #'CROISSANT',
-  'PAIN AU CHOCOLAT',
-  #'COUPE',
-  #'BANETTE',
-  'BAGUETTE',
-  #'CEREAL BAGUETTE',
-  #'SPECIAL BREAD',
-  #'FORMULE SANDWICH',
-  #'TARTELETTE',
-  #'BOULE 400G',
-  'CAMPAGNE',
-  #'COOKIE',
-  'ECLAIR',
+  #'PAIN AU CHOCOLAT',
+  #'BAGUETTE',
+  #'CAMPAGNE',
+  #'ECLAIR',
   'VIK BREAD',
-  #'COMPLET',
-  'FICELLE',
-  #'MOISSON',
-  #'BANETTINE',
-  #'BOULE 200G',
+  #'FICELLE',
   ]
-, epochs=100
+, epochs=25
 , verbose=2
 , n_ventana=15
 , n_pred=1

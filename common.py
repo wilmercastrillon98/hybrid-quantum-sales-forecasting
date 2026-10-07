@@ -4,21 +4,20 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-import calendar
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.functional as F
 
 # %%
-def fechas_faltantes(df, start='2013-01-01', end='2017-08-15', verbose=1):
+def missing_dates(df, start='2013-01-01', end='2017-08-15', verbose=1):
     df = df.copy()
     #df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
     full = pd.date_range(start=start, end=end, freq='D')
     presentes = pd.to_datetime(df['date'].dt.normalize().dropna().unique())
     presentes = pd.DatetimeIndex(sorted(presentes))
     faltantes = full.difference(presentes)
-    if verbose == 1:
+    if verbose >= 1:
       resumen = {
           'start': start,
           'end': end,
@@ -53,7 +52,7 @@ def add_missing_days(df, faltantes, family, sales_value=0):
 def fix_dates(df, product, verbose=1):
   min_date = df['date'].min()
   max_date = df['date'].max()
-  faltantes = fechas_faltantes(df, min_date, max_date, verbose)
+  faltantes = missing_dates(df, min_date, max_date, verbose)
   return add_missing_days(df, faltantes, product)
 
 # %%
@@ -385,3 +384,48 @@ def test_day_common(model, train_data, offset, days_test, day, verbose=1, n_vent
   y_test_real = np.array(y_test_real)
 
   return (predictions[0], y_test_real[day])
+
+def print_model_parameters(model):
+  for name, module in model.named_children():
+    params = sum(p.numel() for p in module.parameters() if p.requires_grad)
+    print(f"{name}: {params}")
+
+# %%
+def load_model_common(all_sales, product, folder, class_model, scaler_sales=StandardScaler(), verbose=0, n_ventana=15, n_pred=1):
+  """Carga el checkpoint `{folder}/{product}.pt` y ejecuta `test` con la misma
+  partición train/test que `excute_quantum` para ese producto."""
+  df = all_sales[(all_sales['product'] == product)].copy()
+  if df.empty:
+    raise ValueError(f'No hay datos para el producto: {product}')
+
+  df = fix_dates(df, product, verbose)
+  days_train = max(365 + n_ventana + n_pred - 1, len(df) - 365)
+  days_test = min(max(30 + n_pred - 1, len(df) - days_train), 365)
+
+  if len(df) < days_train + days_test:
+    raise ValueError('No hay suficientes datos para entrenar y probar.')
+
+  train_data = process_common(
+    df, days_train, days_test,
+    scaler_sales,
+    #MinMaxScaler(feature_range=(-np.pi, np.pi)),
+    #MinMaxScaler(feature_range=(0, 1)),
+  )
+  x_train, _ = train_data.get_train_data_LSTM()
+  n_features = x_train.shape[2]
+
+  path = f"{folder}/{product}.pt"
+  if not os.path.isfile(path):
+    raise FileNotFoundError(f'No existe el modelo guardado: {path}')
+
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  model = class_model(n_features, n_ventana)
+  model.load_state_dict(torch.load(path, map_location=device))
+  model.to(device)
+
+  r2_val, pearson_val = test_common(model, train_data, days_train, days_test, verbose)
+  if verbose == 1:
+    print('   R^2:', r2_val)
+    print('   pearson:', pearson_val)
+
+  return model, r2_val, pearson_val
